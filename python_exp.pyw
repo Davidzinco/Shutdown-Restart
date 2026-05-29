@@ -29,6 +29,50 @@ def _beep():
     import winsound
     winsound.Beep(750, 300)
 
+def _graceful_close_apps():
+    """
+    Enumerates all visible windows and sends a WM_CLOSE message to each,
+    excluding system windows and the application itself.
+    """
+    import ctypes
+    user32 = ctypes.windll.user32
+    WM_CLOSE = 0x0010
+    
+    EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_int)
+    
+    my_hwnd = None
+    try:
+        my_hwnd = root.winfo_id()
+    except Exception:
+        pass
+
+    # List of common system-level/shell window titles to ignore
+    ignored_titles = {
+        "Program Manager", "Start", "Windows Input Experience", 
+        "MessageCenterUI", "Settings", "Search", "Cortana"
+    }
+
+    def callback(hwnd, lParam):
+        if my_hwnd and hwnd == my_hwnd:
+            return True
+            
+        if user32.IsWindowVisible(hwnd):
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length > 0:
+                buffer = ctypes.create_unicode_buffer(length + 1)
+                user32.GetWindowTextW(hwnd, buffer, length + 1)
+                title = buffer.value
+                
+                # Check if this title should be ignored or if it's our app
+                if title in ignored_titles or "Shutdown / Restart GUI" in title:
+                    return True
+                    
+                # Post the close message gracefully
+                user32.PostMessageW(hwnd, WM_CLOSE, 0, 0)
+        return True
+
+    user32.EnumWindows(EnumWindowsProc(callback), 0)
+
 # ----------------------------------------------------------
 # System commands
 # ----------------------------------------------------------
@@ -67,7 +111,20 @@ def start_countdown(seconds: int, action: str):
         time.sleep(1)
 
     progress_var.set(100)
-    update_log("✅ Countdown finished – performing action…")
+    update_log("🧹 Closing active applications gracefully...")
+    root.update_idletasks()
+    
+    _graceful_close_apps()
+    
+    # Wait 3 seconds to let apps close/save
+    for i in range(3, 0, -1):
+        update_log(f"⏳ Waiting {i} second(s) for apps to close...")
+        root.update_idletasks()
+        time.sleep(1)
+        
+    update_log("✅ Performing system action…")
+    root.update_idletasks()
+    
     if action == "shutdown":
         _shutdown(1)     # give OS 1 extra second
     elif action == "restart":
@@ -109,7 +166,7 @@ def show_about():
     messagebox.showinfo(
         "About",
         "Shutdown / Restart GUI\n"
-        "Created by David and use with Kimi.ai & Gemini"
+        "Created by David."
     )
 
 # ----------------------------------------------------------
