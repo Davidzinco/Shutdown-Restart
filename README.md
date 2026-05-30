@@ -10,11 +10,12 @@ No third-party dependencies – only stock Python + Tkinter.
 
 ## ✨ Features
 - ⚡ Schedule shutdown or restart (1 – 120 min)  
-- ⏱️ Live countdown timer + progress bar  
+- ⏱️ Live countdown timer + progress bar
+- 🧹 Graceful App Closure: Safely closes open visible applications (browsers, editors, etc.) before shutdown/restart to prevent file corruption (with a 3-second safety margin)
 - ⏹️ Instant abort button (calls `shutdown /a`)  
 - 🌙 Modern dark UI with emoji icons  
 - 🔊 Audio feedback on finish / cancel  
-- 🪶 Single file, &lt; 250 LOC, zero dependencies  
+- 🪶 Single file, &lt; 250 LOC, zero dependencies
 
 ---
 
@@ -22,4 +23,4 @@ No third-party dependencies – only stock Python + Tkinter.
 1. Clone or download ZIP  
    ```bash
    git clone https://github.com/YOUR_USERNAME/win-shutdown-gui.git
-   cd win-shutdown-gui
+   cd Shutdown-Restart
