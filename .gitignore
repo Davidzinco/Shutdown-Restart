@@ -1,0 +1,10 @@
+# Ignore everything by default
+*
+
+# Do not ignore .gitignore itself
+!.gitignore
+
+# Do not ignore the License, Main Python script, and Readme
+!LICENSE
+!README.md
+!python_exp.pyw
