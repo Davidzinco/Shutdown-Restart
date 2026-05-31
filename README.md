@@ -22,5 +22,5 @@ No third-party dependencies – only stock Python + Tkinter.
 ## 🚀 Quick Start
 1. Clone or download ZIP  
    ```bash
-   git clone https://github.com/YOUR_USERNAME/win-shutdown-gui.git
+   git clone https://github.com/Davidzinco/Shutdown-Restart
    cd Shutdown-Restart
