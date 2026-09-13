@@ -1,10 +1,19 @@
-# Ignore everything by default
-*
+# Python bytecode and local environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
 
-# Do not ignore .gitignore itself
-!.gitignore
+# Local editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
 
-# Do not ignore the License, Main Python script, and Readme
-!LICENSE
-!README.md
-!python_exp.pyw
+# Build and test artifacts
+build/
+dist/
+*.egg-info/
+.coverage
+htmlcov/
+.pytest_cache/

@@ -1,26 +1,115 @@
-# 🔌 Windows Shutdown / Restart GUI  
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)](https://microsoft.com/windows)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+# Shutdown / Restart GUI — Windows & Linux
 
-A tiny, dark-themed desktop app to **schedule shutdown / restart** on Windows with a live countdown, progress bar and one-click abort.  
-No third-party dependencies – only stock Python + Tkinter.
+A desktop application to schedule shutdown or restart, with a dark UI, countdown,
+progress bar, and cancellation. Uses Python's standard library and Tkinter.
 
----
+## Features
 
-## ✨ Features
-- ⚡ Schedule shutdown or restart (1 – 120 min)  
-- ⏱️ Live countdown timer + progress bar
-- 🧹 Graceful App Closure: Safely closes open visible applications (browsers, editors, etc.) before shutdown/restart to prevent file corruption (with a 3-second safety margin)
-- ⏹️ Instant abort button (calls `shutdown /a`)  
-- 🌙 Modern dark UI with emoji icons  
-- 🔊 Audio feedback on finish / cancel  
-- 🪶 Single file, &lt; 250 LOC, zero dependencies
+- Delay of 1–120 minutes, with 5/15/30/60-minute presets.
+- Schedule at a local time (`HH:MM`, 24-hour format). A time already reached today
+  means tomorrow; the selected date and time appear in the UI.
+- One active countdown: scheduling controls stay disabled until cancellation or completion.
+- Cancel works throughout the countdown, including the optional app-closure grace period.
+- Windows: optional requests to close other apps, disabled by default.
+- Linux: shutdown/restart through systemd's `systemctl`, without forced termination flags.
+- Command failures are displayed, including permission errors.
+- `--dry-run` simulates the full flow without closing apps or running power commands.
 
----
+## Install and run
 
-## 🚀 Quick Start
-1. Clone or download ZIP  
-   ```bash
-   git clone https://github.com/Davidzinco/Shutdown-Restart
-   cd Shutdown-Restart
+Requires Python 3.10+ with Tkinter, and a graphical desktop session.
+
+```sh
+git clone https://github.com/Davidzinco/Shutdown-Restart
+cd Shutdown-Restart
+```
+
+**Windows:** install Python with Tcl/Tk support, then run:
+
+```powershell
+python python_exp.py
+```
+
+**Linux:** supported on distributions using systemd. Install Tkinter if missing:
+
+```sh
+# Arch / CachyOS
+sudo pacman -S python tk
+
+# Debian / Ubuntu
+sudo apt install python3 python3-tk
+
+# Fedora
+sudo dnf install python3 python3-tkinter
+```
+
+Then launch from your desktop session:
+
+```sh
+python3 python_exp.py
+```
+
+Linux uses `systemctl --no-ask-password poweroff` or `reboot`. The logged-in user
+must have permission under the system's existing policy. The app does not request
+sudo credentials or change permissions. If authorization is denied, it shows the
+error. Non-systemd Linux distributions are not supported.
+See the [systemd documentation](https://www.freedesktop.org/software/systemd/man/254/systemd-halt.service.html).
+
+Try the application without a real shutdown:
+
+```sh
+python3 python_exp.py --dry-run
+```
+
+On Windows use `python` in place of `python3`.
+
+## Timing and cancellation
+
+The countdown belongs to this application; it is not a background OS schedule.
+Keep the application open and the computer awake. Closing the window during a
+countdown asks whether to cancel and exit. Cancelling does not affect power
+operations scheduled by other programs.
+
+Timers use a monotonic clock to avoid accumulated polling delays. A selected
+clock time is converted to a duration when scheduled; subsequent clock changes
+are not tracked. Sleep/suspend may delay execution, so this is not a wake-up timer.
+
+Once the app submits the OS command, Cancel is disabled. A successful command
+means the OS accepted the request, not that shutdown has completed. A command
+timeout leaves the actual system result uncertain; check before retrying.
+
+On Windows, optional app closure sends `WM_CLOSE` to visible windows outside
+this process, excluding the shell/desktop, then waits three seconds. Apps can
+show save prompts or refuse to close. This does **not** guarantee saved work;
+save documents first. Cancel cannot reopen apps that have already closed.
+Linux delegates application shutdown to the system and has no app-closure option.
+Windows power commands use `/t 0` and do not request `/f`.
+
+## Tests
+
+```sh
+python3 -m unittest discover -s tests -v
+```
+
+Tests cover countdown deadlines, duplicate scheduling, cancellation, time input,
+platform commands, error handling, and GUI flows. All power-command execution
+is mocked or simulated. GUI tests require Tk and a display; they skip if those
+are unavailable. To require GUI coverage, set `SHUTDOWN_REQUIRE_GUI=1`.
+On a headless Linux test machine with Xvfb installed:
+
+```sh
+SHUTDOWN_REQUIRE_GUI=1 xvfb-run -a python3 -m unittest discover -s tests -v
+```
+
+GitHub Actions runs the suite on Linux and Windows with Python 3.10 and 3.14,
+on pushes, pull requests, manual runs, and weekly. GUI coverage is required in CI.
+Real shutdown/restart and Windows native window enumeration still need manual
+validation on a disposable machine with work saved; automated tests never invoke them.
+
+## Project files
+
+- `python_exp.py`: desktop UI and entry point.
+- `power_control.py`: countdown logic, platform commands, optional Windows close requests.
+- `tests/`: unit and GUI regression tests.
+
+Licensed under GPL-3.0; see [LICENSE](LICENSE).
