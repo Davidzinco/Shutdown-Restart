@@ -68,6 +68,24 @@ class CountdownTests(unittest.TestCase):
 
 
 class CommandTests(unittest.TestCase):
+    @patch("power_control.sys.frozen", True, create=True)
+    @patch("power_control.sys.platform", "linux")
+    @patch.dict("os.environ", {"LD_LIBRARY_PATH": "/bundle", "LD_LIBRARY_PATH_ORIG": "/host"})
+    @patch("power_control.subprocess.run")
+    def test_frozen_linux_restores_host_library_path(self, run):
+        run.return_value = subprocess.CompletedProcess([], 0, "", "")
+        execute_power(["fake-command"])
+        self.assertEqual(run.call_args.kwargs["env"]["LD_LIBRARY_PATH"], "/host")
+
+    @patch("power_control.sys.frozen", True, create=True)
+    @patch("power_control.sys.platform", "linux")
+    @patch.dict("os.environ", {"LD_LIBRARY_PATH": "/bundle"}, clear=True)
+    @patch("power_control.subprocess.run")
+    def test_frozen_linux_removes_bundle_library_path(self, run):
+        run.return_value = subprocess.CompletedProcess([], 0, "", "")
+        execute_power(["fake-command"])
+        self.assertNotIn("LD_LIBRARY_PATH", run.call_args.kwargs["env"])
+
     @patch("power_control.shutil.which", side_effect=lambda name: "/commands/" + name)
     def test_platform_commands(self, _):
         self.assertEqual(power_command("shutdown", "Windows"), ["/commands/shutdown.exe", "/s", "/t", "0"])

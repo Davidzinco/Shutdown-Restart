@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+APPDIR_PATH=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "$APPDIR_PATH/usr/bin/powertimer/powertimer" "$@"

@@ -4,6 +4,8 @@ import platform
 import shutil
 import subprocess
 import time
+import os
+import sys
 from datetime import datetime, timedelta
 
 
@@ -50,13 +52,32 @@ def power_command(action, system=None):
 def execute_power(command, dry_run=False):
     if dry_run:
         return "Dry run: " + " ".join(command)
+    env = os.environ.copy()
+    frozen = getattr(sys, "frozen", False)
+    if frozen and sys.platform == "linux":
+        # Host systemctl must load host libraries, not the bundled Python libraries.
+        original = env.pop("LD_LIBRARY_PATH_ORIG", None)
+        env.pop("LD_LIBRARY_PATH", None)
+        if original is not None:
+            env["LD_LIBRARY_PATH"] = original
+    dll_directory = None
+    if frozen and sys.platform == "win32":
+        import ctypes
+        dll_directory = ctypes.WinDLL("kernel32", use_last_error=True).SetDllDirectoryW
+        dll_directory.argtypes = [ctypes.c_wchar_p]
+        dll_directory.restype = ctypes.c_int
+        if not dll_directory(None):
+            raise RuntimeError("Cannot prepare system library paths for power command.")
     try:
         result = subprocess.run(command, capture_output=True, text=True,
-                                errors="replace", timeout=30, check=False)
+                                errors="replace", timeout=30, check=False, env=env)
     except subprocess.TimeoutExpired:
         raise RuntimeError("Command timed out; the system action may already have been accepted.") from None
     except OSError as exc:
         raise RuntimeError("Cannot run power command: " + str(exc)) from exc
+    finally:
+        if dll_directory is not None:
+            dll_directory(sys._MEIPASS)
     if result.returncode:
         raise RuntimeError((result.stderr or result.stdout).strip()
                            or "Power command failed (exit {}).".format(result.returncode))

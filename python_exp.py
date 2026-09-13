@@ -5,6 +5,7 @@ import platform
 import queue
 import threading
 import time
+import sys
 try:
     import tkinter as tk
     from tkinter import font as tkfont, messagebox, ttk
@@ -347,15 +348,19 @@ class PowerApp:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="Simulate without closing apps or changing power state")
+    parser.add_argument("--smoke-test", metavar="REPORT", help="Run a safe GUI self-test and write a JSON report (implies --dry-run)")
     args = parser.parse_args()
     if tk is None:
         parser.error("Tkinter is unavailable. Install Tk (Arch/CachyOS: sudo pacman -S tk; Ubuntu/Debian: sudo apt install python3-tk).")
     if platform.system() not in ("Windows", "Linux"):
         parser.error("Only Windows and Linux are supported.")
     root = tk.Tk()
-    PowerApp(root, dry_run=args.dry_run)
+    app = PowerApp(root, dry_run=args.dry_run or bool(args.smoke_test))
+    if args.smoke_test:
+        from packaging_smoke import run_smoke_test
+        return run_smoke_test(root, app, args.smoke_test)
     root.mainloop()
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

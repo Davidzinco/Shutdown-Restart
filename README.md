@@ -51,7 +51,32 @@ The current preview uses simulation mode.
 - Command failures are displayed, including permission errors.
 - `--dry-run` simulates the full flow without closing apps or running power commands.
 
-## Install and run
+## Download a standalone app
+
+Packages bundle Python and Tkinter; end users do not need to install them.
+
+| System | File | Run |
+| --- | --- | --- |
+| Windows x64 | `PowerTimer-Windows-x64.exe` | Double-click the executable |
+| Linux x86_64 | `PowerTimer-Linux-x86_64.AppImage` | Mark executable, then launch |
+
+Download packages from [GitHub Releases](https://github.com/Davidzinco/Shutdown-Restart/releases)
+when published. Development builds are available under **Artifacts** in successful
+[Build packages runs](https://github.com/Davidzinco/Shutdown-Restart/actions/workflows/packages.yml)
+(GitHub sign-in required). Extract the artifact ZIP first.
+
+```sh
+chmod +x PowerTimer-Linux-x86_64.AppImage
+./PowerTimer-Linux-x86_64.AppImage
+```
+
+For simulation, append `--dry-run` to either executable. Linux packages target
+glibc 2.35+ (Ubuntu 22.04 or newer), systemd, and an X11 desktop or Wayland with
+XWayland. If FUSE is unavailable, run with
+`APPIMAGE_EXTRACT_AND_RUN=1 ./PowerTimer-Linux-x86_64.AppImage`.
+Windows packages are unsigned and may show a Windows security prompt.
+
+## Run from source
 
 Requires Python 3.10+ with Tkinter, and a graphical desktop session.
 
@@ -147,5 +172,23 @@ validation on a disposable machine with work saved; automated tests never invoke
 - `python_exp.py`: desktop UI and entry point.
 - `power_control.py`: countdown logic, platform commands, optional Windows close requests.
 - `tests/`: unit and GUI regression tests.
+
+## Building packages
+
+The **Build packages** workflow builds on each target OS, tests the source GUI,
+then launches the actual `.exe` or `.AppImage` in simulation mode. It runs on
+pushes to main, version tags, pull requests, and manual dispatch. It uploads
+tested artifacts without automatically publishing a release.
+
+Build dependencies are pinned in `packaging/requirements.txt`. Windows uses
+[PyInstaller](https://www.pyinstaller.org/en/stable/usage.html) in one-file,
+windowed mode; Linux uses an onedir bundle inside an AppImage, created by
+[appimagetool](https://github.com/AppImage/appimagetool). The appimagetool download
+is version-pinned and checksum-verified. See `.github/workflows/packages.yml`
+for the full build commands and Linux dependencies.
+
+The package smoke check uses `--smoke-test REPORT.json`, which always enables
+simulation, checks GUI initialization, cancellation and both power-action
+simulations, writes a JSON result, then exits. It never shuts down the test host.
 
 Licensed under GPL-3.0; see [LICENSE](LICENSE).

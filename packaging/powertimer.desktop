@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Power Timer
+Comment=Schedule shutdown or restart with a live countdown
+Exec=powertimer
+Icon=powertimer
+Terminal=false
+Categories=Utility;
+Keywords=shutdown;restart;timer;countdown;power;
