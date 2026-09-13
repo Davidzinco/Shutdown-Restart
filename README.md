@@ -3,6 +3,42 @@
 A desktop application to schedule shutdown or restart, with a dark UI, countdown,
 progress bar, and cancellation. Uses Python's standard library and Tkinter.
 
+The Power Timer interface uses warm charcoal, cream text, and a muted brick-red
+Shutdown button. A large monospace countdown switches to hours for long timers.
+The tick-mark timeline shows elapsed time and percentage; hover over the scale
+to inspect a time without changing the schedule. Time inputs follow the selected
+mode, and the activity log expands through Show details.
+
+## Before and after
+
+From the original Windows-only app at
+[`2f1dcc3`](https://github.com/Davidzinco/Shutdown-Restart/tree/2f1dcc3)
+to the current Power Timer:
+
+| Before · `2f1dcc3` | Now · Power Timer |
+| --- | --- |
+| ![Original compact UI with standard buttons and a visible log](docs/ui-original.png) | ![Current charcoal UI with a red Shutdown button, monospace timer, and tick-mark timeline](docs/ui-preview.png) |
+
+Both previews were captured on Linux. The original UI was reconstructed from
+`2f1dcc3` with power actions disabled; its fonts and icons may differ on Windows.
+The current preview uses simulation mode.
+
+| Area | Original · `2f1dcc3` | Current version |
+| --- | --- | --- |
+| Platforms | Windows only | Windows and Linux with systemd |
+| Appearance | Compact gray layout with standard buttons | Warm charcoal, cream typography, and a brick-red Shutdown button |
+| Countdown | Small minutes-and-seconds display | Large monospace display, including hours for long timers |
+| Progress | Standard progress bar | Tick-mark scale, moving marker, elapsed time, percentage, and hover inspection |
+| Scheduling | Minute input | Validated 1–120-minute delay, presets, or a local clock time |
+| Activity log | Always visible | Expandable through Show details |
+| Timer handling | Each action click starts another worker timer | One monotonic countdown, with UI updates on the main thread |
+| Cancellation | Not checked during the final app-closure wait | Available throughout the countdown and app-closure grace period |
+| App closure | Automatically requests other apps to close | Optional on Windows, off by default |
+| Command results | Exit status ignored | Success or failure reported in the UI |
+| Testing | No automated suite | Unit and GUI regression tests, simulation mode, and Windows/Linux CI |
+
+[View the code changes from `2f1dcc3` to main](https://github.com/Davidzinco/Shutdown-Restart/compare/2f1dcc3...main).
+
 ## Features
 
 - Delay of 1–120 minutes, with 5/15/30/60-minute presets.

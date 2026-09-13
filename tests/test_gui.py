@@ -3,6 +3,7 @@ import time
 import os
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 import python_exp as gui
 
@@ -76,6 +77,60 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(self.app.timer.active)
         self.assertIn("22:30:00", self.app.target.cget("text"))
         self.assertTrue(self.app.mode_box.instate(["disabled"]))
+
+    def test_schedule_mode_shows_only_relevant_input(self):
+        self.assertEqual(self.app.spin.winfo_manager(), "grid")
+        self.assertEqual(self.app.time_entry.winfo_manager(), "")
+        self.app.mode.set("At time")
+        self.assertEqual(self.app.spin.winfo_manager(), "")
+        self.assertEqual(self.app.time_entry.winfo_manager(), "grid")
+        self.assertEqual(self.app.presets.winfo_manager(), "")
+        self.app.preset(30)
+        self.assertEqual(self.app.spin.winfo_manager(), "grid")
+        self.assertEqual(self.app.presets.winfo_manager(), "grid")
+
+    def test_details_toggle_preserves_log(self):
+        self.assertEqual(self.app.details.winfo_manager(), "")
+        self.app.log("Test activity")
+        self.app.details_button.invoke()
+        self.assertEqual(self.app.details.winfo_manager(), "grid")
+        self.assertIn("Test activity", self.app.log_text.get("1.0", "end"))
+        self.app.details_button.invoke()
+        self.assertEqual(self.app.details.winfo_manager(), "")
+
+    def test_timeline_hover_does_not_change_schedule(self):
+        self.app.start("shutdown")
+        deadline = self.app.timer.deadline
+        self.app.timeline.configure(width=400)
+        self.root.update_idletasks()
+        self.app.inspect_timeline(SimpleNamespace(x=200))
+        self.assertIsNotNone(self.app.inspected_progress)
+        self.assertEqual(self.app.timer.deadline, deadline)
+        self.assertEqual(self.app.timer.action, "shutdown")
+        self.assertEqual(self.app.progress.get(), 0)
+        self.app.leave_timeline()
+        self.assertIsNone(self.app.inspected_progress)
+        self.run.assert_not_called()
+
+    def test_timeline_tracks_elapsed_and_resets_on_cancel(self):
+        self.app.start("shutdown")
+        self.advance(30)
+        self.assertEqual(self.app.progress.get(), 50)
+        self.assertEqual(self.app.time_label.cget("text"), "00:30")
+        captions = [self.app.timeline.itemcget(item, "text")
+                    for item in self.app.timeline.find_all()
+                    if self.app.timeline.type(item) == "text"]
+        self.assertIn("00:30  elapsed", captions)
+        self.assertIn("50%", captions)
+        self.app.cancel()
+        self.assertEqual(self.app.progress.get(), 0)
+
+    def test_long_countdown_uses_hours(self):
+        self.app.delay.set("120")
+        self.app.start("shutdown")
+        self.assertEqual(self.app.time_label.cget("text"), "02:00:00")
+        self.advance(1)
+        self.assertEqual(self.app.time_label.cget("text"), "01:59:59")
 
     @patch("python_exp.messagebox.showerror")
     def test_invalid_input(self, error):

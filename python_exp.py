@@ -7,7 +7,7 @@ import threading
 import time
 try:
     import tkinter as tk
-    from tkinter import messagebox, ttk
+    from tkinter import font as tkfont, messagebox, ttk
 except ImportError:
     tk = None
 
@@ -24,63 +24,205 @@ class PowerApp:
         self.closing_phase = False
         self.results = queue.Queue()
         self.command = None
-        root.title("Shutdown / Restart" + (" — SIMULATION" if dry_run else ""))
-        root.minsize(520, 440)
-        root.configure(bg="#242424")
+        root.title("Power Timer" + (" — Simulation" if dry_run else ""))
+        root.configure(bg="#181817")
         root.protocol("WM_DELETE_WINDOW", self.on_close)
+        families = set(tkfont.families(root))
+        font = next((name for name in ("Segoe UI", "Adwaita Sans", "DejaVu Sans") if name in families), "TkDefaultFont")
+        timer_font = next((name for name in ("Cascadia Mono", "Adwaita Mono", "Consolas", "DejaVu Sans Mono") if name in families), "TkFixedFont")
         style = ttk.Style(root)
         style.theme_use("clam")
-        style.configure("TFrame", background="#242424")
-        style.configure("TLabel", background="#242424", foreground="white")
-        frame = ttk.Frame(root, padding=20)
+        bg, card, fg, muted, accent = "#181817", "#222220", "#eeeae3", "#aaa69e", "#a7443e"
+        style.configure("TFrame", background=bg)
+        style.configure("Card.TFrame", background=card)
+        style.configure("TLabel", background=bg, foreground=fg, font=(font, 10))
+        style.configure("Muted.TLabel", foreground=muted)
+        style.configure("Card.TLabel", background=card, foreground=muted)
+        style.configure("Timer.TLabel", background=card, foreground=fg, font=(timer_font, 46))
+        style.configure("TButton", background="#30302d", foreground=fg, font=(font, 10), padding=(14, 10), borderwidth=0)
+        style.map("TButton", background=[("disabled", "#242422"), ("pressed", "#45443f"), ("active", "#3d3c37")],
+                  foreground=[("disabled", "#858178")])
+        style.configure("Accent.TButton", background=accent, foreground="#fff4ed", font=(font, 10, "bold"))
+        style.map("Accent.TButton", background=[("disabled", "#442c29"), ("pressed", "#8e3833"), ("active", "#b85149")],
+                  foreground=[("disabled", "#b0938b")])
+        style.configure("Quiet.TButton", background=bg, foreground=muted, padding=(8, 6))
+        style.configure("TEntry", fieldbackground=card, foreground=fg, insertcolor=fg, padding=8)
+        style.configure("TSpinbox", fieldbackground=card, foreground=fg, arrowcolor=muted, padding=8)
+        style.configure("TCombobox", fieldbackground=card, background="#30302d", foreground=fg, arrowcolor=muted, padding=8)
+        style.map("TCombobox", fieldbackground=[("readonly", card)], foreground=[("readonly", fg)])
+        style.configure("TCheckbutton", background=bg, foreground=muted, font=(font, 9))
+        style.map("TCheckbutton", background=[("active", bg)])
+        style.configure("TEntry", bordercolor="#44423c", lightcolor=card, darkcolor=card)
+        style.configure("TSpinbox", bordercolor="#44423c", lightcolor=card, darkcolor=card, background="#30302d")
+        style.configure("TCombobox", bordercolor="#44423c", lightcolor=card, darkcolor=card)
+        style.map("TEntry", bordercolor=[("focus", "#aaa08f")])
+        style.map("TSpinbox", bordercolor=[("focus", "#aaa08f")])
+        root.option_add("*TCombobox*Listbox.background", card)
+        root.option_add("*TCombobox*Listbox.foreground", fg)
+        root.option_add("*TCombobox*Listbox.selectBackground", "#3d3c37")
+
+        frame = ttk.Frame(root, padding=28)
         frame.pack(fill="both", expand=True)
-        frame.columnconfigure(1, weight=1)
-        frame.rowconfigure(6, weight=1)
+        frame.columnconfigure(0, weight=1)
+        header = ttk.Frame(frame)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 22))
+        ttk.Label(header, text="Power Timer", font=(font, 20, "bold")).pack(anchor="w")
+        ttk.Label(header, text="Shutdown & restart, on your schedule.", style="Muted.TLabel").pack(anchor="w", pady=(5, 0))
+        if dry_run:
+            ttk.Label(header, text="SIMULATION  /  No power actions", foreground=muted).pack(anchor="w", pady=(10, 0))
+
+        timer_card = ttk.Frame(frame, style="Card.TFrame", padding=(20, 22))
+        timer_card.grid(row=1, column=0, sticky="ew")
+        timer_card.columnconfigure(0, weight=1)
+        ttk.Label(timer_card, text="TIME REMAINING", style="Card.TLabel", font=(font, 9)).grid(row=0, column=0)
+        self.time_label = ttk.Label(timer_card, text="00:00", style="Timer.TLabel")
+        self.time_label.grid(row=1, column=0, pady=(6, 4))
+        self.target = ttk.Label(timer_card, text="Choose when to finish", style="Card.TLabel", anchor="center")
+        self.target.grid(row=2, column=0, sticky="ew")
+        self.progress = tk.DoubleVar(value=0)
+        self.timeline = tk.Canvas(timer_card, height=66, width=1, background=card,
+                                  highlightthickness=0, borderwidth=0)
+        self.timeline.grid(row=3, column=0, sticky="ew", pady=(22, 0))
+        self.timeline_font = (font, 9)
+        self.inspected_progress = None
+        self.timeline.bind("<Configure>", self.draw_timeline)
+        self.timeline.bind("<Motion>", self.inspect_timeline)
+        self.timeline.bind("<Leave>", self.leave_timeline)
+        self.progress.trace_add("write", self.draw_timeline)
+
         schedule = ttk.Frame(frame)
-        schedule.grid(row=0, column=0, columnspan=2, sticky="ew")
+        schedule.grid(row=2, column=0, sticky="ew", pady=(24, 0))
+        schedule.columnconfigure(0, weight=1)
+        schedule.columnconfigure(1, weight=1)
+        ttk.Label(schedule, text="Schedule", style="Muted.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 8))
+        self.input_label = ttk.Label(schedule, text="Minutes", style="Muted.TLabel")
+        self.input_label.grid(row=0, column=1, sticky="w", padx=(14, 0), pady=(0, 8))
         self.mode = tk.StringVar(value="Delay")
-        self.mode_box = ttk.Combobox(schedule, textvariable=self.mode, values=("Delay", "At time"), state="readonly", width=10)
-        self.mode_box.grid(row=0, column=0, padx=5)
-        ttk.Label(schedule, text="Minutes:").grid(row=0, column=1)
+        self.mode_box = ttk.Combobox(schedule, textvariable=self.mode, values=("Delay", "At time"), state="readonly", width=12)
+        self.mode_box.grid(row=1, column=0, sticky="ew")
         self.delay = tk.StringVar(value="1")
-        self.spin = ttk.Spinbox(schedule, from_=1, to=120, textvariable=self.delay, width=5)
-        self.spin.grid(row=0, column=2, padx=5)
-        ttk.Label(schedule, text="HH:MM:").grid(row=0, column=3)
+        self.spin = ttk.Spinbox(schedule, from_=1, to=120, textvariable=self.delay, width=10, font=(font, 11))
+        self.spin.grid(row=1, column=1, sticky="ew", padx=(14, 0))
         self.at_time = tk.StringVar(value=(datetime.now() + timedelta(hours=1)).strftime("%H:%M"))
-        self.time_entry = ttk.Entry(schedule, textvariable=self.at_time, width=7)
-        self.time_entry.grid(row=0, column=4, padx=5)
-        presets = ttk.Frame(schedule)
-        presets.grid(row=1, column=0, columnspan=5, pady=(10, 0))
+        self.time_entry = ttk.Entry(schedule, textvariable=self.at_time, width=10, font=(font, 11))
+        self.time_entry.grid(row=1, column=1, sticky="ew", padx=(14, 0))
+        self.presets = ttk.Frame(schedule)
+        self.presets.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(12, 0))
         self.preset_buttons = []
-        for minutes in (5, 15, 30, 60):
-            button = ttk.Button(presets, text="{} min".format(minutes), command=lambda m=minutes: self.preset(m))
-            button.pack(side="left", padx=3)
+        for column, minutes in enumerate((5, 15, 30, 60)):
+            self.presets.columnconfigure(column, weight=1)
+            button = ttk.Button(self.presets, text="{} min".format(minutes), command=lambda m=minutes: self.preset(m))
+            button.grid(row=0, column=column, sticky="ew", padx=(0 if column == 0 else 6, 0))
             self.preset_buttons.append(button)
+        self.mode.trace_add("write", self.update_mode)
+        self.update_mode()
+
         self.close_apps = tk.BooleanVar(value=False)
-        self.close_check = ttk.Checkbutton(frame, variable=self.close_apps,
-                                          text="Request apps to close first (Windows only)")
-        self.close_check.grid(row=1, column=0, columnspan=2, pady=12, sticky="w")
-        if platform.system() != "Windows":
+        self.close_check = ttk.Checkbutton(frame, variable=self.close_apps, text="Request apps to close before finishing")
+        if platform.system() == "Windows":
+            self.close_check.grid(row=3, column=0, pady=(16, 0), sticky="w")
+        else:
             self.close_check.state(["disabled"])
         buttons = ttk.Frame(frame)
-        buttons.grid(row=2, column=0, columnspan=2, pady=10)
-        self.shutdown_button = ttk.Button(buttons, text="Shutdown", command=lambda: self.start("shutdown"))
+        buttons.grid(row=4, column=0, sticky="ew", pady=(24, 0))
+        buttons.columnconfigure((0, 1), weight=1)
+        self.shutdown_button = ttk.Button(buttons, text="Shut down", style="Accent.TButton", command=lambda: self.start("shutdown"))
         self.restart_button = ttk.Button(buttons, text="Restart", command=lambda: self.start("restart"))
-        self.cancel_button = ttk.Button(buttons, text="Cancel", command=self.cancel, state="disabled")
-        for button in (self.shutdown_button, self.restart_button, self.cancel_button):
-            button.pack(side="left", padx=5)
-        self.progress = tk.DoubleVar(value=0)
-        ttk.Progressbar(frame, variable=self.progress, maximum=100).grid(
-            row=3, column=0, columnspan=2, sticky="ew", pady=10)
-        self.time_label = ttk.Label(frame, text="00:00", font=("sans", 24))
-        self.time_label.grid(row=4, column=0, columnspan=2)
-        self.target = ttk.Label(frame, text="Ready")
-        self.target.grid(row=5, column=0, columnspan=2, pady=10)
-        self.log_text = tk.Text(frame, height=9, width=60, state="disabled", wrap="word",
-                                bg="#171717", fg="white")
-        self.log_text.grid(row=6, column=0, columnspan=2, sticky="nsew")
+        self.shutdown_button.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self.restart_button.grid(row=0, column=1, sticky="ew", padx=(6, 0))
+        self.cancel_button = ttk.Button(buttons, text="Cancel timer", command=self.cancel, state="disabled", style="Quiet.TButton")
+        self.cancel_button.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+
+        footer = ttk.Frame(frame)
+        footer.grid(row=5, column=0, sticky="ew", pady=(12, 0))
+        ttk.Label(footer, text="Keep the app open while waiting.", style="Muted.TLabel", font=(font, 9)).pack(side="left")
+        self.details_button = ttk.Button(footer, text="Show details", style="Quiet.TButton", command=self.toggle_details)
+        self.details_button.pack(side="right")
+        self.details = ttk.Frame(frame)
+        self.details.grid(row=6, column=0, sticky="nsew", pady=(12, 0))
+        self.details.columnconfigure(0, weight=1)
+        self.details.rowconfigure(0, weight=1)
+        frame.rowconfigure(6, weight=1)
+        self.log_text = tk.Text(self.details, height=6, width=44, state="disabled", wrap="word",
+                                bg=card, fg=muted, relief="flat", padx=12, pady=10, font=(font, 9))
+        self.log_text.grid(row=0, column=0, sticky="nsew")
+        scrollbar = ttk.Scrollbar(self.details, command=self.log_text.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        self.log_text.configure(yscrollcommand=scrollbar.set)
+        self.details.grid_remove()
         self.log("Simulation: no apps will close and no power command will run." if dry_run
                  else "Ready. Save your work before scheduling a power action.")
+        root.update_idletasks()
+        root.minsize(root.winfo_reqwidth(), root.winfo_reqheight())
+
+    @staticmethod
+    def format_duration(seconds):
+        minutes, seconds = divmod(max(0, int(seconds)), 60)
+        if minutes >= 60:
+            hours, minutes = divmod(minutes, 60)
+            return "{:02d}:{:02d}:{:02d}".format(hours, minutes, seconds)
+        return "{:02d}:{:02d}".format(minutes, seconds)
+
+    def inspect_timeline(self, event):
+        width = max(1, self.timeline.winfo_width() - 12)
+        self.inspected_progress = min(100, max(0, (event.x - 6) / width * 100))
+        self.draw_timeline()
+
+    def leave_timeline(self, _=None):
+        self.inspected_progress = None
+        self.draw_timeline()
+
+    def draw_timeline(self, *_):
+        canvas = self.timeline
+        canvas.delete("all")
+        width = max(24, canvas.winfo_width())
+        left, right = 6, width - 6
+        progress = min(100, max(0, self.progress.get()))
+        duration = self.timer.duration
+        # A measured scale: filled ticks track elapsed time, a red needle marks now.
+        for index in range(61):
+            x = left + (right - left) * index / 60
+            major = index % 5 == 0
+            filled = progress > 0 and index / 60 * 100 <= progress
+            canvas.create_line(x, 12 if major else 18, x, 32,
+                               fill="#b6ad9d" if filled else "#48463f",
+                               width=2, capstyle="round")
+        position = left + (right - left) * progress / 100
+        canvas.create_polygon(position - 4, 2, position + 4, 2, position, 7,
+                              fill="#bd655b", outline="")
+        canvas.create_line(position, 11, position, 34, fill="#bd655b", width=2)
+        if self.inspected_progress is not None and duration and (self.timer.active or progress):
+            fraction = self.inspected_progress / 100
+            x = left + (right - left) * fraction
+            canvas.create_line(x, 10, x, 35, fill="#e0d9cc", dash=(2, 2))
+            caption = "AT {}  /  elapsed".format(self.format_duration(duration * fraction))
+        elif duration and (self.timer.active or progress):
+            caption = "{}  elapsed".format(self.format_duration(duration * progress / 100))
+        else:
+            caption = "Waiting to start"
+        canvas.create_text(0, 55, text=caption, anchor="w", fill="#aaa69e", font=self.timeline_font)
+        canvas.create_text(width, 55, text="{:.0f}%".format(progress), anchor="e",
+                           fill="#d0c9bd", font=self.timeline_font)
+
+    def update_mode(self, *_):
+        at_time = self.mode.get() == "At time"
+        self.input_label.configure(text="Time · 24-hour" if at_time else "Minutes")
+        if at_time:
+            self.spin.grid_remove()
+            self.time_entry.grid()
+            self.presets.grid_remove()
+        else:
+            self.time_entry.grid_remove()
+            self.spin.grid()
+            self.presets.grid()
+
+    def toggle_details(self):
+        if self.details.winfo_manager():
+            self.details.grid_remove()
+            self.details_button.configure(text="Show details")
+        else:
+            self.details.grid()
+            self.details_button.configure(text="Hide details")
 
     def log(self, message):
         self.log_text.configure(state="normal")
@@ -127,8 +269,7 @@ class PowerApp:
             return
         remaining, progress = self.timer.snapshot()
         self.progress.set(progress)
-        mins, secs = divmod(remaining, 60)
-        self.time_label.configure(text="{:02d}:{:02d}".format(mins, secs))
+        self.time_label.configure(text=self.format_duration(remaining))
         action = self.timer.take_due()
         if action is None:
             self.job = self.root.after(100, self.tick)
