@@ -1,4 +1,6 @@
 #!/bin/sh
 set -eu
 APPDIR_PATH=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+export FONTCONFIG_FILE="$APPDIR_PATH/etc/fonts/fonts.conf"
+export FONTCONFIG_PATH="$APPDIR_PATH/etc/fonts"
 exec "$APPDIR_PATH/usr/bin/powertimer/powertimer" "$@"

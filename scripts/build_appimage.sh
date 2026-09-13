@@ -4,6 +4,8 @@ python_bin=${PYTHON:-python3}
 "$python_bin" -m PyInstaller --noconfirm --clean --onedir --name powertimer --distpath build/linux-dist --workpath build/linux-work --specpath build python_exp.py
 appdir=build/PowerTimer.AppDir
 mkdir -p "$appdir/usr/bin"
+mkdir -p "$appdir/etc/fonts"
+install -m 644 packaging/fonts.conf "$appdir/etc/fonts/fonts.conf"
 cp -a build/linux-dist/powertimer "$appdir/usr/bin/"
 install -m 755 packaging/AppRun "$appdir/AppRun"
 install -m 644 packaging/powertimer.desktop "$appdir/powertimer.desktop"
